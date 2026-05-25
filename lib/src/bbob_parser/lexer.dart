@@ -67,12 +67,12 @@ class Lexer {
   }
 
   Lexer._(
-    this._buffer, {
-    required this.onToken,
-    String openTag = openSquareBracket,
-    String closeTag = closeSquareBracket,
-    bool enableEscapeTags = false,
-  })  : _tokens = [],
+      this._buffer, {
+        required this.onToken,
+        String openTag = openSquareBracket,
+        String closeTag = closeSquareBracket,
+        bool enableEscapeTags = false,
+      })  : _tokens = [],
         _openTag = openTag,
         _closeTag = closeTag,
         _enableEscapeTags = enableEscapeTags,
@@ -85,12 +85,12 @@ class Lexer {
 
   /// Creates a new [Lexer].
   factory Lexer.create(
-    String buffer, {
-    Function(Token)? onToken,
-    String openTag = openSquareBracket,
-    String closeTag = closeSquareBracket,
-    bool enableEscapeTags = false,
-  }) {
+      String buffer, {
+        Function(Token)? onToken,
+        String openTag = openSquareBracket,
+        String closeTag = closeSquareBracket,
+        bool enableEscapeTags = false,
+      }) {
     final lexer = Lexer._(
       buffer,
       onToken: onToken,
@@ -168,36 +168,45 @@ class Lexer {
     /// Represents: https://github.com/JiLiZART/BBob/blob/99c629e66678e40cec7b924eda2f1bfe0d46b941/packages/bbob-parser/src/lexer.ts#L104
     TagState _nextTagState() {
       if (tagMode == TagState.ATTRIBUTE) {
-         // Grab untill end, whitespace or end tag.
-         final validAttrName = (String? char) => !(char == '=' || _isWhiteSpace(char));
-         final name = attrCharGrabber.grabWhile(validAttrName);
+        // Grab until end, whitespace or end tag.
+        // Respect double-quote pairs: spaces and '=' inside quotes
+        // should not split the attribute value.
+        var insideQuotes = false;
+        final validAttrName = (String? char) {
+          if (char == doubleQuote && attrCharGrabber.previous != backslash) {
+            insideQuotes = !insideQuotes;
+          }
+          if (insideQuotes) return true;
+          return !(char == '=' || _isWhiteSpace(char));
+        };
+        final name = attrCharGrabber.grabWhile(validAttrName);
 
-         final nextchar = attrCharGrabber.current;
-         final isEnd = attrCharGrabber.isLast;
-         final isValue = nextchar != equal;
+        final nextchar = attrCharGrabber.current;
+        final isEnd = attrCharGrabber.isLast;
+        final isValue = nextchar != equal;
 
-         attrCharGrabber.skip();
+        attrCharGrabber.skip();
 
-         // Tag has ended already, this is a attribute value.
-         if (isEnd || isValue) {
-           final escaped = unquote(trimChar(name, doubleQuote));
-           attrTokens.add(Token(
-               TokenType.AttributeValue, escaped, _linePosition, _columnPosition));
-         } else {
-           // Definitely a name
-           attrTokens.add(Token(
-               TokenType.AttributeName, name, _linePosition, _columnPosition));
-         }
+        // Tag has ended already, this is a attribute value.
+        if (isEnd || isValue) {
+          final escaped = unquote(trimChar(name, doubleQuote));
+          attrTokens.add(Token(
+              TokenType.AttributeValue, escaped, _linePosition, _columnPosition));
+        } else {
+          // Definitely a name
+          attrTokens.add(Token(
+              TokenType.AttributeName, name, _linePosition, _columnPosition));
+        }
 
-         if (isEnd) {
-           return TagState.NAME;
-         }
+        if (isEnd) {
+          return TagState.NAME;
+        }
 
-         if (isValue) {
-           return TagState.ATTRIBUTE;
-         }
+        if (isValue) {
+          return TagState.ATTRIBUTE;
+        }
 
-         return TagState.VALUE;
+        return TagState.VALUE;
       }
 
       if (tagMode == TagState.VALUE) {

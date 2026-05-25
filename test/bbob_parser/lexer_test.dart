@@ -6,10 +6,10 @@ import 'package:test/test.dart';
 void main() {
   group('Lexer', () {
     tokenEqualityMatcher(
-      Token expected, {
-      bool skipLinePositionChecking = false,
-      bool skipColumnPositionChecking = false,
-    }) {
+        Token expected, {
+          bool skipLinePositionChecking = false,
+          bool skipColumnPositionChecking = false,
+        }) {
       var matcher = TypeMatcher<Token>()
           .having((t) => t.name, 'name', expected.name)
           .having((t) => t.type, 'type', expected.type)
@@ -17,23 +17,23 @@ void main() {
           .having((t) => t.toString(), 'toString()', expected.toString());
       if (!skipColumnPositionChecking) {
         matcher = matcher.having(
-            (t) => t.columnPosition, 'columnPosition', expected.columnPosition);
+                (t) => t.columnPosition, 'columnPosition', expected.columnPosition);
       }
 
       if (!skipLinePositionChecking) {
         matcher = matcher.having(
-            (t) => t.linePosition, 'linePosition', expected.linePosition);
+                (t) => t.linePosition, 'linePosition', expected.linePosition);
       }
 
       return matcher;
     }
 
     validateTokens(
-      List<Token> actual,
-      List<Token> expected, {
-      bool skipLinePositionChecking = false,
-      bool skipColumnPositionChecking = false,
-    }) {
+        List<Token> actual,
+        List<Token> expected, {
+          bool skipLinePositionChecking = false,
+          bool skipColumnPositionChecking = false,
+        }) {
       validateToken(Token actual, Token expected) {
         expect(
             actual,
@@ -51,9 +51,9 @@ void main() {
 
     group('bbcode', () {
       List<Token> tokenize(String input,
-              {enableEscapeTags = false,
-              String openTag = '[',
-              String closeTag = ']'}) =>
+          {enableEscapeTags = false,
+            String openTag = '[',
+            String closeTag = ']'}) =>
           Lexer.create(
             input,
             enableEscapeTags: enableEscapeTags,
@@ -383,9 +383,9 @@ void main() {
 
     group('html', () {
       List<Token> tokenizeHtml(String input,
-              {enableEscapeTags = false,
-              String openTag = '<',
-              String closeTag = '>'}) =>
+          {enableEscapeTags = false,
+            String openTag = '<',
+            String closeTag = '>'}) =>
           Lexer.create(
             input,
             enableEscapeTags: enableEscapeTags,
@@ -453,7 +453,7 @@ void main() {
 
       test(
           'attributes with no space between them. No valid, but accepted by '
-          'the browser', () {
+              'the browser', () {
         const content = r'<button id="test2" class="value4"title="value5">'
             r'class="value4"title="value5"</button>';
         final tokens = tokenizeHtml(content);
@@ -500,6 +500,139 @@ void main() {
           tokens,
           output,
           skipColumnPositionChecking: true,
+        );
+      });
+    });
+
+    group('quoted attributes with spaces', () {
+      List<Token> tokenize(String input) =>
+          Lexer.create(input).tokenize();
+
+      test('single value quoted attribute with spaces: [color="rgb(221, 0, 67)"]', () {
+        const input = '[color="rgb(221, 0, 67)"]';
+        final tokens = tokenize(input);
+        const output = [
+          Token(TokenType.Tag, 'color'),
+          Token(TokenType.AttributeValue, 'rgb(221, 0, 67)'),
+        ];
+        validateTokens(
+          tokens,
+          output,
+          skipColumnPositionChecking: true,
+          skipLinePositionChecking: true,
+        );
+      });
+
+      test('named attribute with quoted value containing spaces', () {
+        const input = '[tag title="Hello World"]';
+        final tokens = tokenize(input);
+        const output = [
+          Token(TokenType.Tag, 'tag'),
+          Token(TokenType.AttributeName, 'title'),
+          Token(TokenType.AttributeValue, 'Hello World'),
+        ];
+        validateTokens(
+          tokens,
+          output,
+          skipColumnPositionChecking: true,
+          skipLinePositionChecking: true,
+        );
+      });
+
+      test('multiple attributes where one value is quoted with spaces', () {
+        const input = '[tag id=42 label="Foo Bar" active=true]';
+        final tokens = tokenize(input);
+        const output = [
+          Token(TokenType.Tag, 'tag'),
+          Token(TokenType.AttributeName, 'id'),
+          Token(TokenType.AttributeValue, '42'),
+          Token(TokenType.AttributeName, 'label'),
+          Token(TokenType.AttributeValue, 'Foo Bar'),
+          Token(TokenType.AttributeName, 'active'),
+          Token(TokenType.AttributeValue, 'true'),
+        ];
+        validateTokens(
+          tokens,
+          output,
+          skipColumnPositionChecking: true,
+          skipLinePositionChecking: true,
+        );
+      });
+
+      test('quoted value with equals sign inside: [url="https://x.com?a=1&b=2"]', () {
+        const input = '[url="https://x.com?a=1&b=2"]';
+        final tokens = tokenize(input);
+        const output = [
+          Token(TokenType.Tag, 'url'),
+          Token(TokenType.AttributeValue, 'https://x.com?a=1&b=2'),
+        ];
+        validateTokens(
+          tokens,
+          output,
+          skipColumnPositionChecking: true,
+          skipLinePositionChecking: true,
+        );
+      });
+
+      test('quoted value with multiple spaces: [font="Times New Roman"]', () {
+        const input = '[font="Times New Roman"]';
+        final tokens = tokenize(input);
+        const output = [
+          Token(TokenType.Tag, 'font'),
+          Token(TokenType.AttributeValue, 'Times New Roman'),
+        ];
+        validateTokens(
+          tokens,
+          output,
+          skipColumnPositionChecking: true,
+          skipLinePositionChecking: true,
+        );
+      });
+
+      test('real-world bbcode: nested color+size+bold', () {
+        const input = '[color="rgb(221, 0, 67)"][size="18px"][b]Title[/b][/size][/color]';
+        final tokens = tokenize(input);
+        // Verify key tokens: color tag gets the full rgb value
+        expect(tokens[0].type, TokenType.Tag);
+        expect(tokens[0].value, 'color');
+        expect(tokens[1].type, TokenType.AttributeValue);
+        expect(tokens[1].value, 'rgb(221, 0, 67)');
+        expect(tokens[2].type, TokenType.Tag);
+        expect(tokens[2].value, 'size');
+        expect(tokens[3].type, TokenType.AttributeValue);
+        expect(tokens[3].value, '18px');
+      });
+
+      test('quoted attribute followed by unquoted attribute', () {
+        const input = '[tag name="Foo Bar" count=5]';
+        final tokens = tokenize(input);
+        const output = [
+          Token(TokenType.Tag, 'tag'),
+          Token(TokenType.AttributeName, 'name'),
+          Token(TokenType.AttributeValue, 'Foo Bar'),
+          Token(TokenType.AttributeName, 'count'),
+          Token(TokenType.AttributeValue, '5'),
+        ];
+        validateTokens(
+          tokens,
+          output,
+          skipColumnPositionChecking: true,
+          skipLinePositionChecking: true,
+        );
+      });
+
+      test('unquoted value without spaces still works', () {
+        const input = '[color=#FF0000]';
+        final tokens = tokenize(input);
+        const output = [
+          Token(TokenType.Tag, 'color'),
+          Token(TokenType.AttributeValue, '#FF0000'),
+        ];
+        validateTokens(
+          tokens,
+          output,
+          skipColumnPositionChecking: true,
+          skipLinePositionChecking: true,
         );
       });
     });

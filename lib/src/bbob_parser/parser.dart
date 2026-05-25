@@ -26,6 +26,11 @@ class Parser {
   /// Cache for nested tags checks.
   final _nestedTagsMap = {};
 
+  /// Buffer for reconstructing invalid tags with their attributes.
+  /// When a tag is not in [validTags], we need to accumulate the tag name
+  /// and its attributes before flushing as a single text node.
+  String? _invalidTagBuffer;
+
   /// Function that'll be called if there is an error.
   final Function(ParseErrorMessage message)? onError;
 
@@ -138,10 +143,33 @@ class Parser {
     }
   }
 
+  /// Flushes the invalid tag buffer as a text node if it contains anything.
+  void _flushInvalidTagBuffer() {
+    if (_invalidTagBuffer != null) {
+      _appendNodes(Text('$_invalidTagBuffer$closeTag'));
+      _invalidTagBuffer = null;
+    }
+  }
+
   void _handleNode(Token token) {
     final lastElement = lastOrNull(_tagNodeElements);
     final tokenValue = token.value;
     final isNested = isTagNested(token.toString());
+
+    // If we have a pending invalid tag buffer, accumulate attribute tokens
+    // into it regardless of whether we're inside a valid parent element.
+    if (_invalidTagBuffer != null) {
+      if (token.isAttributeName) {
+        _invalidTagBuffer = '$_invalidTagBuffer $tokenValue';
+        return;
+      } else if (token.isAttributeValue) {
+        _invalidTagBuffer = '$_invalidTagBuffer=$tokenValue';
+        return;
+      } else {
+        // Non-attribute token: flush the buffer first, then continue.
+        _flushInvalidTagBuffer();
+      }
+    }
 
     if (lastElement != null) {
       if (token.isAttributeName) {
@@ -167,13 +195,13 @@ class Parser {
         }
       } else if (token.isTag) {
         // if tag is not allowed, just past it as is
-        _appendNodes(Text(token.toString()));
+        _invalidTagBuffer = '$openTag${token.value}';
       }
     } else if (token.isText) {
       _appendNodes(Text(tokenValue));
     } else if (token.isTag) {
       // if tag is not allowed, just past it as is
-      _appendNodes(Text(token.toString()));
+      _invalidTagBuffer = '$openTag${token.value}';
     }
   }
 
@@ -184,6 +212,7 @@ class Parser {
     _tagNodeElements.clear();
     _ElementsAttrName.clear();
     _nestedTagsMap.clear();
+    _invalidTagBuffer = null;
   }
 
   /// Parses the [input] string and returns the result ast in a list of [Node].
@@ -196,6 +225,7 @@ class Parser {
         bool isAllowedTag = validTags?.contains(token.name) ?? true;
 
         if (token.isTag && isAllowedTag) {
+          _flushInvalidTagBuffer();
           _handleTag(token);
         } else {
           _handleNode(token);
@@ -206,6 +236,9 @@ class Parser {
       enableEscapeTags: enableEscapeTags,
     );
     tokenizer.tokenize();
+
+    // Flush any remaining invalid tag buffer.
+    _flushInvalidTagBuffer();
 
     return _nodes;
   }

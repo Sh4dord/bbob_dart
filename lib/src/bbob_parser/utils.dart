@@ -83,11 +83,13 @@ E? removePossibleLast<E>(List<E> items) {
 ///
 /// Example: `trimChar('*hello*', '*') ==> 'hello'`
 String trimChar(String str, String charToRemove) {
-  while (str[0] == charToRemove) {
+  if (str.isEmpty) return str;
+
+  while (str.isNotEmpty && str[0] == charToRemove) {
     str = str.substring(1);
   }
 
-  while (str[str.length - 1] == charToRemove) {
+  while (str.isNotEmpty && str[str.length - 1] == charToRemove) {
     str = str.substring(0, str.length - 1);
   }
 
